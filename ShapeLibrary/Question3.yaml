@@ -1,0 +1,44 @@
+﻿apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-app
+  labels:
+    app: web-app
+spec:
+  replicas: 3 # По условию: 3 пода стправляются с нагрузкой
+  selector:
+    matchLabels:
+      app: web-app
+  template:
+    metadata:
+      labels:
+        app: web-app
+    spec:
+      containers:
+      - name: web-app-container
+        image: myapp # Задаем имя образа приложения
+        resources:
+          limits:
+            memory: "128Mi" # По условию памяти всегда “ровно” в районе 128M memory
+            cpu: "300m"     # Так как известно, что на первые запросы приложению требуется значительно больше ресурсов CPU, то стартовый лимит CPU указываем с запасом, чтобы приложение получило больше ресурсов при инициализации
+          requests:
+            memory: "128Mi" # Ограничение памяти по условию
+            cpu: "100m"     # Запрос минимальных ресурсов CPU (0.1 CPU) для дальнейшего использования
+        ports:
+        - containerPort: 80
+        readinessProbe: # Используем readinessProbe для проверки готовности контейнера к обработке запросов
+          httpGet:
+            path: /healthz # Путь для проверки "здоровья" приложения
+            port: 80
+          initialDelaySeconds: 10 # Задержка перед первой проверкой после запуска контейнера, так как по условию приложение требует около 5-10 секунд для инициализации
+          periodSeconds: 5        # Задаем периодичность проверок
+      affinity:
+        podAntiAffinity: # По условию поды должны находиться на разных нодах для отказоустойчивости
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - web-app
+            topologyKey: "kubernetes.io/hostname" # Гарантирует, что поды не будут размещены на одной ноде
